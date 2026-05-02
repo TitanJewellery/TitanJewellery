@@ -1,12 +1,7 @@
 <?php
-/**
- * Plugin Name: Titan Jewellery Ring Sizer
- * Description: Camera-based ring sizer. Use shortcode [titan_ring_sizer] on any page or product.
- * Version:     1.0.0
- * Author:      Titan Jewellery
- */
-
-if ( ! defined( 'ABSPATH' ) ) exit;
+// Shortcode: [titan_ring_sizer]
+// Paste this into Code Snippets (Snippets > Add New > PHP snippet) then activate.
+// Add [titan_ring_sizer] to any WooCommerce page, product, or post.
 
 add_shortcode( 'titan_ring_sizer', 'titan_ring_sizer_render' );
 

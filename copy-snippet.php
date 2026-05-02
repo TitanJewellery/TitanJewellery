@@ -1,51 +1,5 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Copy Ring Sizer Snippet</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #0e0e0e; color: #f0f0f0;
-    padding: 20px; min-height: 100vh;
-  }
-  h1 { font-size: 1.1rem; color: #c9a96e; margin-bottom: 6px; letter-spacing: 0.05em; }
-  p  { font-size: 0.85rem; color: #888; margin-bottom: 20px; line-height: 1.5; }
-  #copy-btn {
-    display: block; width: 100%; padding: 20px;
-    background: #c9a96e; color: #0e0e0e;
-    border: none; border-radius: 10px;
-    font-size: 1.2rem; font-weight: 800;
-    letter-spacing: 0.06em; cursor: pointer;
-    margin-bottom: 16px; text-transform: uppercase;
-    transition: background 0.2s;
-  }
-  #copy-btn.done { background: #4caf50; color: #fff; }
-  #msg {
-    text-align: center; font-size: 0.85rem;
-    color: #4caf50; min-height: 22px; margin-bottom: 14px;
-  }
-  textarea {
-    width: 100%; height: 60vh;
-    background: #181818; color: #ccc;
-    border: 1px solid #333; border-radius: 8px;
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 0.72rem; padding: 14px;
-    resize: vertical; line-height: 1.5;
-  }
-</style>
-</head>
-<body>
-
-<h1>Titan Ring Sizer — Code Snippet</h1>
-<p>Tap the button below to copy the full PHP snippet, then paste it into Code&nbsp;Snippets&nbsp;&gt;&nbsp;Add&nbsp;New.</p>
-
-<button id="copy-btn" onclick="copyCode()">⬆ TAP TO COPY ALL CODE</button>
-<div id="msg"></div>
-
-<textarea id="code" readonly>
+<?php
+$snippet = <<<'ENDSNIPPET'
 <?php
 // WordPress Code Snippet — paste into Code Snippets > Add New > PHP snippet
 // Shortcode: [titan_ring_sizer]
@@ -160,7 +114,6 @@ function titan_ring_sizer_render() {
         </div>
         <div class="tj-field">
             <label for="tj-width">Ring width you&rsquo;re considering</label>
-            <!--  value = "actual_mm:size_adjustment"  -->
             <select id="tj-width">
                 <option value="4:0">Up to 4mm &mdash; no size adjustment</option>
                 <option value="6:0.2">5mm to 7mm &mdash; adds approx. half a size</option>
@@ -207,11 +160,11 @@ function titan_ring_sizer_render() {
     (function () {
         'use strict';
 
-        var CARD_W  = 85.60;   // credit card width  mm (ISO 7810 ID-1)
-        var CARD_H  = 54.00;   // credit card height mm
+        var CARD_W  = 85.60;
+        var CARD_H  = 54.00;
         var CARD_AR = CARD_W / CARD_H;
         var DPR     = Math.min(window.devicePixelRatio || 1, 3);
-        var FPS_MS  = 100;     // ~10 fps processing
+        var FPS_MS  = 100;
 
         var SIZES = [
             ['A',   12.04], ['A½', 12.24], ['B',   12.45], ['B½', 12.65],
@@ -230,7 +183,6 @@ function titan_ring_sizer_render() {
             ['Z+1', 22.61], ['Z+2', 23.01], ['Z+3', 23.42],
         ];
 
-        // ── State ────────────────────────────────────────────────────────────
         var phase      = 'idle';
         var stream     = null;
         var rafId      = null;
@@ -239,7 +191,6 @@ function titan_ring_sizer_render() {
         var cardBuf    = [];
         var fingerBuf  = [];
 
-        // ── DOM ──────────────────────────────────────────────────────────────
         var elS1     = document.getElementById('tj-s1');
         var elS2     = document.getElementById('tj-s2');
         var elS3     = document.getElementById('tj-s3');
@@ -266,8 +217,6 @@ function titan_ring_sizer_render() {
         document.getElementById('tj-retry') .addEventListener('click', function () { show(elS1); });
         document.getElementById('tj-manual').addEventListener('click', manualMeasure);
 
-        // ── Camera ───────────────────────────────────────────────────────────
-
         function openCamera() {
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 alert('Camera access is not supported in this browser. Please use Chrome or Safari.');
@@ -278,7 +227,6 @@ function titan_ring_sizer_render() {
             lockedCard = null; cardBuf = []; fingerBuf = [];
             setStatus('tj-st-scan', 'Hold camera above a credit card on a flat surface');
 
-            // Five fallback levels — covers iPhone, Android, Galaxy Tab, Samsung Internet
             var attempts = [
                 { audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 } } },
                 { audio: false, video: { facingMode: { ideal: 'environment' } } },
@@ -295,7 +243,6 @@ function titan_ring_sizer_render() {
                     stream = s;
                     elVid.srcObject = s;
 
-                    // Explicit play() needed on many Android browsers
                     var playPromise = elVid.play();
                     if (playPromise) playPromise.catch(function () {});
 
@@ -310,7 +257,6 @@ function titan_ring_sizer_render() {
                     elVid.addEventListener('loadedmetadata', onReady, { once: true });
                     elVid.addEventListener('canplay',        onReady, { once: true });
 
-                    // Hard timeout fallback — some Android devices never fire the events
                     setTimeout(function () {
                         if (!started && elVid.readyState >= 1) onReady();
                         else if (!started && elVid.videoWidth) onReady();
@@ -338,8 +284,6 @@ function titan_ring_sizer_render() {
             elCanvas.width  = elWrap.clientWidth  * DPR;
             elCanvas.height = elWrap.clientHeight * DPR;
         }
-
-        // ── Processing loop ───────────────────────────────────────────────────
 
         function startLoop() { if (!rafId) rafId = requestAnimationFrame(tick); }
         function stopLoop()  { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } }
@@ -381,8 +325,6 @@ function titan_ring_sizer_render() {
             }
         }
 
-        // ── Frame capture ─────────────────────────────────────────────────────
-
         function grabFrame(cw, ch) {
             var cap = document.createElement('canvas');
             cap.width = cw; cap.height = ch;
@@ -391,7 +333,6 @@ function titan_ring_sizer_render() {
             if (!vW || !vH) return null;
 
             var vAR = vW / vH, cAR = cw / ch;
-            // Detect rotated video (some iOS versions stream landscape even when phone is portrait)
             var rotated = (vAR > 1.2 && cAR < 0.9) || (vAR < 0.9 && cAR > 1.2);
 
             if (rotated) {
@@ -409,8 +350,6 @@ function titan_ring_sizer_render() {
             }
             return cap.getContext('2d').getImageData(0, 0, cw, ch);
         }
-
-        // ── Card detection (projection profile) ──────────────────────────────
 
         function detectCard(img, W, H) {
             var s = 5, dW = Math.floor(W / s), dH = Math.floor(H / s), d = img.data;
@@ -444,7 +383,7 @@ function titan_ring_sizer_render() {
             var ar = cW / cH;
             if (Math.abs(ar-CARD_AR) > CARD_AR*0.28 && Math.abs(1/ar-CARD_AR) > CARD_AR*0.28) return null;
 
-            if (cW < cH) { // normalise to landscape
+            if (cW < cH) {
                 var t; t=x1;x1=y1;y1=t; t=x2;x2=y2;y2=t; cW=x2-x1; cH=y2-y1;
             }
             return { x:x1, y:y1, w:cW, h:cH };
@@ -479,12 +418,7 @@ function titan_ring_sizer_render() {
             };
         }
 
-        // ── Finger measurement at ring line ───────────────────────────────────
-
         function ringLineY(card, ringWidthMm) {
-            // Ring sits at the base of the finger (lower portion of card)
-            // ringCentre = 78% down the card height
-            // Returns {top, bot} in canvas pixels
             var ringPx  = ringWidthMm * (card.h / CARD_H);
             var centre  = card.y + card.h * 0.78;
             return { top: centre - ringPx / 2, bot: centre + ringPx / 2 };
@@ -536,8 +470,6 @@ function titan_ring_sizer_render() {
             return (w>=len*0.06 && w<=len*0.70) ? w : 0;
         }
 
-        // ── Stability ─────────────────────────────────────────────────────────
-
         function fingerIsStable() {
             var v=fingerBuf.filter(Boolean);
             if(v.length<5) return false;
@@ -549,8 +481,6 @@ function titan_ring_sizer_render() {
             var v=fingerBuf.filter(Boolean).sort(function(a,b){return a-b;});
             return v[Math.floor(v.length/2)];
         }
-
-        // ── Manual fallback ───────────────────────────────────────────────────
 
         function manualMeasure() {
             if (phase === 'card_found' && lockedCard) {
@@ -580,8 +510,6 @@ function titan_ring_sizer_render() {
                 'Finger ~' + mm.toFixed(1) + ' mm · Ring inner Ø ' + best[1].toFixed(2) + ' mm';
             show(elS3);
         }
-
-        // ── Drawing ───────────────────────────────────────────────────────────
 
         function drawScanOverlay(detected) {
             var ctx=elCanvas.getContext('2d'), W=elCanvas.width, H=elCanvas.height;
@@ -617,7 +545,6 @@ function titan_ring_sizer_render() {
             ctx.fillRect(0,0,W,H);
             ctx.clearRect(card.x,card.y,card.w,card.h);
 
-            // Card outline — gold until finger detected, then green
             ctx.strokeStyle = fingerMm ? 'rgba(80,220,120,0.9)' : '#c9a96e';
             ctx.lineWidth   = 2.5*DPR;
             ctx.strokeRect(card.x, card.y, card.w, card.h);
@@ -625,9 +552,6 @@ function titan_ring_sizer_render() {
             var lineL = card.x + card.w * 0.08;
             var lineR = card.x + card.w * 0.92;
 
-            // ── White guide lines — show where to place finger ──────────────
-            // Top white line  = finger tip position (upper 10% of card)
-            // Bottom white line = base of finger / palm (lower 10% of card)
             var wTop = card.y + card.h * 0.08;
             var wBot = card.y + card.h * 0.92;
 
@@ -637,38 +561,30 @@ function titan_ring_sizer_render() {
             ctx.beginPath(); ctx.moveTo(lineL, wTop); ctx.lineTo(lineR, wTop); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(lineL, wBot); ctx.lineTo(lineR, wBot); ctx.stroke();
 
-            // Small tick marks at each end of white lines
             var tick = 6*DPR;
             [[lineL, wTop],[lineR, wTop],[lineL, wBot],[lineR, wBot]].forEach(function(pt) {
                 ctx.beginPath(); ctx.moveTo(pt[0], pt[1]-tick); ctx.lineTo(pt[0], pt[1]+tick); ctx.stroke();
             });
 
-            // ── Blue ring lines — where ring sits (base of finger) ──────────
             var rl = ringLineY(card, ringWidthMm);
 
-            // Shaded band between blue lines
             ctx.fillStyle = 'rgba(80,150,255,0.12)';
             ctx.fillRect(lineL, rl.top, lineR-lineL, rl.bot-rl.top);
 
-            // Top and bottom blue lines
             ctx.strokeStyle = 'rgba(80,160,255,0.9)';
             ctx.lineWidth   = 2*DPR;
             ctx.beginPath(); ctx.moveTo(lineL, rl.top); ctx.lineTo(lineR, rl.top); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(lineL, rl.bot); ctx.lineTo(lineR, rl.bot); ctx.stroke();
 
-            // Blue label
             ctx.fillStyle  = 'rgba(80,160,255,0.9)';
             ctx.font       = 'bold '+Math.round(9*DPR)+'px sans-serif';
             ctx.textAlign  = 'center';
             ctx.fillText('RING POSITION', W/2, rl.top - 6*DPR);
 
-            // Status label
             if (fingerMm) {
                 setStatus('tj-st-finger', 'Finger detected — hold still…');
             }
         }
-
-        // ── Size lookup ───────────────────────────────────────────────────────
 
         function closestSize(diam) {
             var best=SIZES[0], bestD=Infinity;
@@ -683,49 +599,65 @@ function titan_ring_sizer_render() {
     <?php
     return ob_get_clean();
 }
-</textarea>
-
+ENDSNIPPET;
+?><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Copy Ring Sizer Snippet — Titan Jewellery</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0e0e0e; color: #f0f0f0;
+    padding: 20px; min-height: 100vh;
+  }
+  h1 { font-size: 1.1rem; color: #c9a96e; margin-bottom: 6px; letter-spacing: 0.05em; }
+  p  { font-size: 0.85rem; color: #888; margin-bottom: 20px; line-height: 1.5; }
+  #copy-btn {
+    display: block; width: 100%; padding: 22px;
+    background: #c9a96e; color: #0e0e0e;
+    border: none; border-radius: 10px;
+    font-size: 1.3rem; font-weight: 800;
+    letter-spacing: 0.06em; cursor: pointer;
+    margin-bottom: 16px; text-transform: uppercase;
+  }
+  #copy-btn.done { background: #4caf50; color: #fff; }
+  #msg { text-align: center; font-size: 0.85rem; color: #4caf50; min-height: 22px; margin-bottom: 14px; }
+  textarea {
+    width: 100%; height: 60vh;
+    background: #181818; color: #ccc;
+    border: 1px solid #333; border-radius: 8px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.72rem; padding: 14px; resize: vertical; line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+<h1>Titan Ring Sizer — Code Snippet</h1>
+<p>Tap the button to copy the full PHP snippet, then paste into Code Snippets &rsaquo; Add New &rsaquo; PHP snippet.</p>
+<button id="copy-btn" onclick="copyCode()">TAP TO COPY ALL CODE</button>
+<div id="msg"></div>
+<textarea id="code" readonly><?php echo htmlspecialchars($snippet); ?></textarea>
 <script>
-function copyCode() {
-  var ta  = document.getElementById('code');
-  var btn = document.getElementById('copy-btn');
-  var msg = document.getElementById('msg');
-
-  // Modern Clipboard API (Chrome Android, Safari 13.1+)
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(ta.value).then(function () {
-      showDone(btn, msg);
-    }).catch(function () {
-      fallbackCopy(ta, btn, msg);
-    });
-  } else {
-    fallbackCopy(ta, btn, msg);
-  }
+function copyCode(){
+  var ta=document.getElementById('code');
+  var btn=document.getElementById('copy-btn');
+  var msg=document.getElementById('msg');
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(ta.value).then(function(){done(btn,msg);}).catch(function(){fb(ta,btn,msg);});
+  } else { fb(ta,btn,msg); }
 }
-
-function fallbackCopy(ta, btn, msg) {
-  ta.select();
-  ta.setSelectionRange(0, 999999); // mobile
-  var ok = false;
-  try { ok = document.execCommand('copy'); } catch(e) {}
-  if (ok) {
-    showDone(btn, msg);
-  } else {
-    msg.style.color = '#d08080';
-    msg.textContent = 'Auto-copy failed — long-press the box above and choose Select All then Copy';
-  }
+function fb(ta,btn,msg){
+  ta.select(); ta.setSelectionRange(0,999999);
+  var ok=false; try{ok=document.execCommand('copy');}catch(e){}
+  if(ok){done(btn,msg);}else{msg.style.color='#d08080';msg.textContent='Long-press the box, tap Select All, then Copy';}
 }
-
-function showDone(btn, msg) {
-  btn.textContent = '✔ COPIED!';
-  btn.classList.add('done');
-  msg.style.color = '#4caf50';
-  msg.textContent = 'Paste into Code Snippets › Add New › PHP snippet';
-  setTimeout(function () {
-    btn.textContent = '⬆ TAP TO COPY ALL CODE';
-    btn.classList.remove('done');
-    msg.textContent = '';
-  }, 4000);
+function done(btn,msg){
+  btn.textContent='COPIED!'; btn.classList.add('done');
+  msg.style.color='#4caf50'; msg.textContent='Paste into Code Snippets > Add New > PHP snippet';
+  setTimeout(function(){btn.textContent='TAP TO COPY ALL CODE';btn.classList.remove('done');msg.textContent='';},4000);
 }
 </script>
 </body>

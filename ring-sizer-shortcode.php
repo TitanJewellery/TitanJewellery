@@ -66,7 +66,7 @@ function titan_ring_sizer_render() {
     .tj-gold  { background: #c9a96e; color: #0e0e0e; }
     .tj-ghost { background: #1c1c1c; color: #777; border: 1px solid #2a2a2a; font-size: 0.85rem; padding: 11px; }
     .tj-cam-wrap {
-        position: relative; width: 100%; aspect-ratio: 4/3;
+        position: relative; width: 100%; aspect-ratio: 3/4;
         background: #000; border-radius: 14px; overflow: hidden;
     }
     .tj-cam-wrap video {

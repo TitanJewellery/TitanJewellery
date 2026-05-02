@@ -67,6 +67,7 @@ function titan_ring_sizer_render() {
     .tj-ghost { background: #1c1c1c; color: #777; border: 1px solid #2a2a2a; font-size: 0.85rem; padding: 11px; }
     .tj-cam-wrap {
         position: relative; width: 100%; aspect-ratio: 3/4;
+        min-height: 300px;
         background: #000; border-radius: 14px; overflow: hidden;
     }
     .tj-cam-wrap video {
@@ -79,7 +80,7 @@ function titan_ring_sizer_render() {
         font-size: 0.82rem; line-height: 1.55; padding: 10px 14px;
         border-radius: 8px; text-align: center;
     }
-    .tj-st-scan   { background: #181818; color: #888; border: 1px solid #2a2a2a; }
+    .tj-st-scan   { background: #181818; color: #888;   border: 1px solid #2a2a2a; }
     .tj-st-found  { background: #0d1f0d; color: #6ecf7e; border: 1px solid #2a5a2a; }
     .tj-st-finger { background: #0d1520; color: #6ab0e8; border: 1px solid #1a4060; }
     .tj-st-err    { background: #1e0e0e; color: #d08080; border: 1px solid #5c2020; }
@@ -100,7 +101,7 @@ function titan_ring_sizer_render() {
     <div class="tj-step tj-on" id="tj-s1">
         <div>
             <h2>Ring Sizer</h2>
-            <p class="tj-sub">Point your camera at a credit card — it detects the card automatically, then measures your finger.</p>
+            <p class="tj-sub">Point your camera at a credit card on a flat surface. It detects the card automatically, then measures your finger.</p>
         </div>
         <div class="tj-box">
             <div class="tj-box-title">What you&rsquo;ll need</div>
@@ -111,10 +112,11 @@ function titan_ring_sizer_render() {
         </div>
         <div class="tj-field">
             <label for="tj-width">Ring width you&rsquo;re considering</label>
+            <!--  value = "actual_mm:size_adjustment"  -->
             <select id="tj-width">
-                <option value="0">Up to 4mm &mdash; no size adjustment</option>
-                <option value="0.2">5mm to 7mm &mdash; adds approx. half a size</option>
-                <option value="0.4">8mm or wider &mdash; adds approx. one full size</option>
+                <option value="4:0">Up to 4mm &mdash; no size adjustment</option>
+                <option value="6:0.2">5mm to 7mm &mdash; adds approx. half a size</option>
+                <option value="8:0.4">8mm or wider &mdash; adds approx. one full size</option>
             </select>
         </div>
         <button class="tj-btn tj-gold" id="tj-start">Open Camera</button>
@@ -127,11 +129,11 @@ function titan_ring_sizer_render() {
             <div class="tj-status tj-st-scan" id="tj-status">Hold camera above a credit card on a flat surface</div>
         </div>
         <div class="tj-cam-wrap" id="tj-wrap">
-            <video id="tj-vid" autoplay playsinline muted></video>
+            <video id="tj-vid" autoplay playsinline webkit-playsinline muted></video>
             <canvas id="tj-canvas"></canvas>
         </div>
         <div style="display:flex;gap:10px;">
-            <button class="tj-btn tj-ghost" id="tj-back" style="flex:1">Cancel</button>
+            <button class="tj-btn tj-ghost" id="tj-back"   style="flex:1">Cancel</button>
             <button class="tj-btn tj-ghost" id="tj-manual" style="flex:2">Measure now</button>
         </div>
     </div>
@@ -157,11 +159,11 @@ function titan_ring_sizer_render() {
     (function () {
         'use strict';
 
-        var CARD_W   = 85.60;
-        var CARD_H   = 54.00;
-        var CARD_AR  = CARD_W / CARD_H; // 1.585
-        var DPR      = Math.min(window.devicePixelRatio || 1, 3);
-        var FPS_MS   = 100; // process every 100ms (~10fps)
+        var CARD_W  = 85.60;   // credit card width  mm (ISO 7810 ID-1)
+        var CARD_H  = 54.00;   // credit card height mm
+        var CARD_AR = CARD_W / CARD_H;
+        var DPR     = Math.min(window.devicePixelRatio || 1, 3);
+        var FPS_MS  = 100;     // ~10 fps processing
 
         var SIZES = [
             ['A',   12.04], ['A½', 12.24], ['B',   12.45], ['B½', 12.65],
@@ -181,13 +183,13 @@ function titan_ring_sizer_render() {
         ];
 
         // ── State ────────────────────────────────────────────────────────────
-        var phase       = 'idle';     // idle | scanning | card_found | done
-        var mediaStream = null;
-        var rafId       = null;
-        var lastTick    = 0;
-        var lockedCard  = null;       // stable card rect {x,y,w,h}
-        var cardBuf     = [];         // last N card detections
-        var fingerBuf   = [];         // last N finger measurements (mm)
+        var phase      = 'idle';
+        var stream     = null;
+        var rafId      = null;
+        var lastTick   = 0;
+        var lockedCard = null;
+        var cardBuf    = [];
+        var fingerBuf  = [];
 
         // ── DOM ──────────────────────────────────────────────────────────────
         var elS1     = document.getElementById('tj-s1');
@@ -202,10 +204,13 @@ function titan_ring_sizer_render() {
             [elS1, elS2, elS3].forEach(function (s) { s.classList.remove('tj-on'); });
             el.classList.add('tj-on');
         }
-
-        function status(cls, msg) {
+        function setStatus(cls, msg) {
             elStatus.className = 'tj-status ' + cls;
             elStatus.textContent = msg;
+        }
+        function getRingParams() {
+            var parts = document.getElementById('tj-width').value.split(':');
+            return { widthMm: parseFloat(parts[0]), sizeAdj: parseFloat(parts[1]) };
         }
 
         document.getElementById('tj-start') .addEventListener('click', openCamera);
@@ -216,36 +221,58 @@ function titan_ring_sizer_render() {
         // ── Camera ───────────────────────────────────────────────────────────
 
         function openCamera() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('Camera access is not supported in this browser. Please use Chrome or Safari.');
+                return;
+            }
             show(elS2);
             phase = 'scanning';
             lockedCard = null; cardBuf = []; fingerBuf = [];
-            status('tj-st-scan', 'Hold camera above a credit card on a flat surface');
+            setStatus('tj-st-scan', 'Hold camera above a credit card on a flat surface');
 
-            // Three fallback constraint levels for maximum device compatibility
+            // Five fallback levels — covers iPhone, Android, Galaxy Tab, Samsung Internet
             var attempts = [
                 { audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 } } },
                 { audio: false, video: { facingMode: { ideal: 'environment' } } },
+                { audio: false, video: { facingMode: 'environment' } },
+                { audio: false, video: { width: { min: 640 }, height: { min: 480 } } },
                 { audio: false, video: true },
             ];
-
             tryCamera(attempts, 0);
         }
 
         function tryCamera(attempts, i) {
             navigator.mediaDevices.getUserMedia(attempts[i])
-                .then(function (stream) {
-                    mediaStream = stream;
-                    elVid.srcObject = stream;
-                    elVid.addEventListener('loadedmetadata', function () {
+                .then(function (s) {
+                    stream = s;
+                    elVid.srcObject = s;
+
+                    // Explicit play() needed on many Android browsers
+                    var playPromise = elVid.play();
+                    if (playPromise) playPromise.catch(function () {});
+
+                    var started = false;
+                    function onReady() {
+                        if (started || !elVid.videoWidth) return;
+                        started = true;
                         sizeCanvas();
                         startLoop();
-                    }, { once: true });
+                    }
+
+                    elVid.addEventListener('loadedmetadata', onReady, { once: true });
+                    elVid.addEventListener('canplay',        onReady, { once: true });
+
+                    // Hard timeout fallback — some Android devices never fire the events
+                    setTimeout(function () {
+                        if (!started && elVid.readyState >= 1) onReady();
+                        else if (!started && elVid.videoWidth) onReady();
+                    }, 2500);
                 })
                 .catch(function () {
                     if (i + 1 < attempts.length) {
                         tryCamera(attempts, i + 1);
                     } else {
-                        alert('Camera access is required. Please allow camera permission in your browser settings and try again.');
+                        alert('Camera access failed. Please allow camera permission in your browser settings and try again.');
                         show(elS1);
                     }
                 });
@@ -253,11 +280,10 @@ function titan_ring_sizer_render() {
 
         function closeCamera() {
             stopLoop();
-            if (mediaStream) { mediaStream.getTracks().forEach(function (t) { t.stop(); }); mediaStream = null; }
+            if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
             elVid.srcObject = null;
             phase = 'idle'; lockedCard = null; cardBuf = []; fingerBuf = [];
-            var ctx = elCanvas.getContext('2d');
-            ctx.clearRect(0, 0, elCanvas.width, elCanvas.height);
+            elCanvas.getContext('2d').clearRect(0, 0, elCanvas.width, elCanvas.height);
         }
 
         function sizeCanvas() {
@@ -265,7 +291,7 @@ function titan_ring_sizer_render() {
             elCanvas.height = elWrap.clientHeight * DPR;
         }
 
-        // ── Loop ─────────────────────────────────────────────────────────────
+        // ── Processing loop ───────────────────────────────────────────────────
 
         function startLoop() { if (!rafId) rafId = requestAnimationFrame(tick); }
         function stopLoop()  { if (rafId) { cancelAnimationFrame(rafId); rafId = null; } }
@@ -293,18 +319,17 @@ function titan_ring_sizer_render() {
                     lockedCard = averageCards();
                     phase = 'card_found';
                     cardBuf = []; fingerBuf = [];
-                    status('tj-st-found', 'Card detected ✔  Now rest your ring finger across it');
+                    setStatus('tj-st-found', 'Card detected ✔  Now rest your ring finger across it');
                 }
 
             } else if (phase === 'card_found') {
-                var mm = measureFinger(img, cw, lockedCard);
+                var ring = getRingParams();
+                var mm   = measureAtRingLine(img, cw, lockedCard, ring.widthMm);
                 fingerBuf.push(mm);
                 if (fingerBuf.length > 6) fingerBuf.shift();
-                drawCardOverlay(lockedCard, mm);
+                drawCardOverlay(lockedCard, ring.widthMm, mm);
 
-                if (fingerIsStable()) {
-                    commitResult();
-                }
+                if (fingerIsStable()) commitResult();
             }
         }
 
@@ -317,200 +342,164 @@ function titan_ring_sizer_render() {
             var vW = elVid.videoWidth, vH = elVid.videoHeight;
             if (!vW || !vH) return null;
 
-            // Detect if video is rotated relative to the container (common on some iOS versions)
             var vAR = vW / vH, cAR = cw / ch;
+            // Detect rotated video (some iOS versions stream landscape even when phone is portrait)
             var rotated = (vAR > 1.2 && cAR < 0.9) || (vAR < 0.9 && cAR > 1.2);
 
             if (rotated) {
-                // Draw video rotated 90° to match portrait container
                 ctx.save();
                 ctx.translate(cw / 2, ch / 2);
                 ctx.rotate(Math.PI / 2);
-                var scale = Math.max(cw / vH, ch / vW);
-                ctx.drawImage(elVid, -vW * scale / 2, -vH * scale / 2, vW * scale, vH * scale);
+                var sc = Math.max(cw / vH, ch / vW);
+                ctx.drawImage(elVid, -vW * sc / 2, -vH * sc / 2, vW * sc, vH * sc);
                 ctx.restore();
             } else {
-                // Standard object-fit:cover crop
                 var sx = 0, sy = 0, sw = vW, sh = vH;
                 if (vAR > cAR) { sw = vH * cAR; sx = (vW - sw) / 2; }
                 else           { sh = vW / cAR; sy = (vH - sh) / 2; }
                 ctx.drawImage(elVid, sx, sy, sw, sh, 0, 0, cw, ch);
             }
-
             return cap.getContext('2d').getImageData(0, 0, cw, ch);
         }
 
-        // ── Card detection ────────────────────────────────────────────────────
-        // Projection profile: sum gradients along rows/columns to find card edges
+        // ── Card detection (projection profile) ──────────────────────────────
 
         function detectCard(img, W, H) {
-            var s  = 5; // downsample factor for speed
-            var dW = Math.floor(W / s);
-            var dH = Math.floor(H / s);
-            var d  = img.data;
+            var s = 5, dW = Math.floor(W / s), dH = Math.floor(H / s), d = img.data;
 
             function lum(px, py) {
-                px = Math.max(0, Math.min(W - 1, px));
-                py = Math.max(0, Math.min(H - 1, py));
+                px = Math.max(0, Math.min(W-1, px)); py = Math.max(0, Math.min(H-1, py));
                 var p = (py * W + px) * 4;
-                return 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
+                return 0.299*d[p] + 0.587*d[p+1] + 0.114*d[p+2];
             }
 
-            // Row profile: sum vertical gradient per row → finds horizontal card edges
             var rowP = new Float32Array(dH);
-            for (var y = 1; y < dH - 1; y++)
+            for (var y = 1; y < dH-1; y++)
                 for (var x = 0; x < dW; x++)
-                    rowP[y] += Math.abs(lum(x * s, y * s + s) - lum(x * s, y * s - s));
+                    rowP[y] += Math.abs(lum(x*s, y*s+s) - lum(x*s, y*s-s));
 
-            // Col profile: sum horizontal gradient per column → finds vertical card edges
             var colP = new Float32Array(dW);
-            for (var x = 1; x < dW - 1; x++)
+            for (var x = 1; x < dW-1; x++)
                 for (var y = 0; y < dH; y++)
-                    colP[x] += Math.abs(lum(x * s + s, y * s) - lum(x * s - s, y * s));
+                    colP[x] += Math.abs(lum(x*s+s, y*s) - lum(x*s-s, y*s));
 
-            var hPeaks = top2Peaks(rowP, Math.round(dH * 0.08));
-            var vPeaks = top2Peaks(colP, Math.round(dW * 0.08));
-            if (!hPeaks || !vPeaks) return null;
+            var hP = top2Peaks(rowP, Math.round(dH * 0.08));
+            var vP = top2Peaks(colP, Math.round(dW * 0.08));
+            if (!hP || !vP) return null;
 
-            var y1 = Math.min(hPeaks[0], hPeaks[1]) * s;
-            var y2 = Math.max(hPeaks[0], hPeaks[1]) * s;
-            var x1 = Math.min(vPeaks[0], vPeaks[1]) * s;
-            var x2 = Math.max(vPeaks[0], vPeaks[1]) * s;
+            var y1=Math.min(hP[0],hP[1])*s, y2=Math.max(hP[0],hP[1])*s;
+            var x1=Math.min(vP[0],vP[1])*s, x2=Math.max(vP[0],vP[1])*s;
+            var cW=x2-x1, cH=y2-y1;
 
-            var cW = x2 - x1, cH = y2 - y1;
-            if (cW < W * 0.15 || cH < H * 0.08) return null;
-            if (cW > W * 0.97 || cH > H * 0.97) return null;
+            if (cW < W*0.15 || cH < H*0.08 || cW > W*0.97 || cH > H*0.97) return null;
 
-            // Accept landscape or portrait card orientation
             var ar = cW / cH;
-            var ok = Math.abs(ar - CARD_AR) < CARD_AR * 0.28 ||
-                     Math.abs(1 / ar - CARD_AR) < CARD_AR * 0.28;
-            if (!ok) return null;
+            if (Math.abs(ar-CARD_AR) > CARD_AR*0.28 && Math.abs(1/ar-CARD_AR) > CARD_AR*0.28) return null;
 
-            // Normalise to landscape
-            if (cW < cH) {
-                var t;
-                t = x1; x1 = y1; y1 = t;
-                t = x2; x2 = y2; y2 = t;
-                cW = x2 - x1; cH = y2 - y1;
+            if (cW < cH) { // normalise to landscape
+                var t; t=x1;x1=y1;y1=t; t=x2;x2=y2;y2=t; cW=x2-x1; cH=y2-y1;
             }
-
-            return { x: x1, y: y1, w: cW, h: cH };
+            return { x:x1, y:y1, w:cW, h:cH };
         }
 
         function top2Peaks(arr, minSep) {
-            var n = arr.length;
-            // Find global peak
-            var v1 = -1, i1 = -1;
-            for (var i = 2; i < n - 2; i++) {
-                if (arr[i] > v1 && arr[i] >= arr[i - 1] && arr[i] >= arr[i + 1]) {
-                    v1 = arr[i]; i1 = i;
-                }
+            var n=arr.length, v1=-1, i1=-1, v2=-1, i2=-1;
+            for (var i=2; i<n-2; i++)
+                if (arr[i]>v1 && arr[i]>=arr[i-1] && arr[i]>=arr[i+1]) { v1=arr[i]; i1=i; }
+            if (i1<0) return null;
+            for (var i=2; i<n-2; i++) {
+                if (Math.abs(i-i1)<minSep) continue;
+                if (arr[i]>v2 && arr[i]>=arr[i-1] && arr[i]>=arr[i+1]) { v2=arr[i]; i2=i; }
             }
-            if (i1 < 0) return null;
-
-            // Find second peak at least minSep away
-            var v2 = -1, i2 = -1;
-            for (var i = 2; i < n - 2; i++) {
-                if (Math.abs(i - i1) < minSep) continue;
-                if (arr[i] > v2 && arr[i] >= arr[i - 1] && arr[i] >= arr[i + 1]) {
-                    v2 = arr[i]; i2 = i;
-                }
-            }
-            if (i2 < 0 || v2 < v1 * 0.22) return null;
-            return [i1, i2];
+            return (i2<0 || v2<v1*0.22) ? null : [i1, i2];
         }
 
-        // ── Card stability ────────────────────────────────────────────────────
-
         function cardIsStable() {
-            var valid = cardBuf.filter(Boolean);
-            if (valid.length < 5) return false;
-            var avgW = valid.reduce(function (s, c) { return s + c.w; }, 0) / valid.length;
-            var dev  = valid.reduce(function (s, c) { return s + Math.abs(c.w - avgW); }, 0) / valid.length;
-            return dev / avgW < 0.10;
+            var v = cardBuf.filter(Boolean);
+            if (v.length < 5) return false;
+            var avg = v.reduce(function(s,c){return s+c.w;},0)/v.length;
+            return v.reduce(function(s,c){return s+Math.abs(c.w-avg);},0)/v.length / avg < 0.10;
         }
 
         function averageCards() {
-            var v = cardBuf.filter(Boolean), n = v.length;
+            var v=cardBuf.filter(Boolean), n=v.length;
             return {
-                x: v.reduce(function (s, c) { return s + c.x; }, 0) / n,
-                y: v.reduce(function (s, c) { return s + c.y; }, 0) / n,
-                w: v.reduce(function (s, c) { return s + c.w; }, 0) / n,
-                h: v.reduce(function (s, c) { return s + c.h; }, 0) / n,
+                x:v.reduce(function(s,c){return s+c.x;},0)/n,
+                y:v.reduce(function(s,c){return s+c.y;},0)/n,
+                w:v.reduce(function(s,c){return s+c.w;},0)/n,
+                h:v.reduce(function(s,c){return s+c.h;},0)/n,
             };
         }
 
-        // ── Finger measurement ────────────────────────────────────────────────
+        // ── Finger measurement at ring line ───────────────────────────────────
 
-        function measureFinger(img, W, card) {
-            // Scan the full middle 60% of card height for the finger
-            var scanL = Math.round(card.x + card.w * 0.05);
-            var scanR = Math.round(card.x + card.w * 0.95);
-            var scanT = Math.round(card.y + card.h * 0.20);
-            var scanB = Math.round(card.y + card.h * 0.80);
-            var hits  = [];
+        function ringLineY(card, ringWidthMm) {
+            // Ring sits at the base of the finger (lower portion of card)
+            // ringCentre = 78% down the card height
+            // Returns {top, bot} in canvas pixels
+            var ringPx  = ringWidthMm * (card.h / CARD_H);
+            var centre  = card.y + card.h * 0.78;
+            return { top: centre - ringPx / 2, bot: centre + ringPx / 2 };
+        }
+
+        function measureAtRingLine(img, W, card, ringWidthMm) {
+            var rl     = ringLineY(card, ringWidthMm);
+            var scanL  = Math.round(card.x + card.w * 0.05);
+            var scanR  = Math.round(card.x + card.w * 0.95);
+            var scanT  = Math.round(rl.top);
+            var scanB  = Math.round(rl.bot);
+            var hits   = [];
 
             for (var row = scanT; row <= scanB; row += 2) {
                 var w = rowWidth(img, row, scanL, scanR, W);
                 if (w > 0) hits.push(w);
             }
-
-            if (hits.length < 4) return null;
-            hits.sort(function (a, b) { return a - b; });
-            var medPx  = hits[Math.floor(hits.length / 2)];
+            if (hits.length < 2) return null;
+            hits.sort(function(a,b){return a-b;});
+            var medPx  = hits[Math.floor(hits.length/2)];
             var diamMm = medPx * (CARD_W / card.w);
             return (diamMm >= 10 && diamMm <= 26) ? diamMm : null;
         }
 
         function rowWidth(img, row, left, right, W) {
-            var d = img.data, len = right - left;
-            var lum = new Float32Array(len);
-            for (var i = 0; i < len; i++) {
-                var p = (row * W + left + i) * 4;
-                lum[i] = 0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2];
+            var d=img.data, len=right-left;
+            var lum=new Float32Array(len);
+            for (var i=0;i<len;i++) {
+                var p=(row*W+left+i)*4;
+                lum[i]=0.299*d[p]+0.587*d[p+1]+0.114*d[p+2];
             }
-            // 5-tap smooth
-            var sm = new Float32Array(len);
-            for (var i = 2; i < len - 2; i++)
-                sm[i] = (lum[i-2] + lum[i-1] + lum[i] + lum[i+1] + lum[i+2]) / 5;
-            // Gradient
-            var gr = new Float32Array(len);
-            for (var i = 1; i < len - 1; i++) gr[i] = sm[i + 1] - sm[i - 1];
-            // Adaptive threshold
-            var s = 0;
-            for (var i = 10; i < len - 10; i++) s += Math.abs(gr[i]);
-            var th = Math.max(5, (s / (len - 20)) * 1.8);
-            // Left edge: strongest in left 55%
-            var lE = -1, lS = th, lSgn = 0;
-            for (var i = 6; i < Math.round(len * 0.55); i++) {
-                var a = Math.abs(gr[i]);
-                if (a > lS) { lS = a; lE = i; lSgn = gr[i] > 0 ? 1 : -1; }
+            var sm=new Float32Array(len);
+            for (var i=2;i<len-2;i++) sm[i]=(lum[i-2]+lum[i-1]+lum[i]+lum[i+1]+lum[i+2])/5;
+            var gr=new Float32Array(len);
+            for (var i=1;i<len-1;i++) gr[i]=sm[i+1]-sm[i-1];
+            var s=0;
+            for (var i=10;i<len-10;i++) s+=Math.abs(gr[i]);
+            var th=Math.max(5,(s/(len-20))*1.8);
+            var lE=-1,lS=th,lSgn=0;
+            for (var i=6;i<Math.round(len*0.55);i++) {
+                var a=Math.abs(gr[i]); if(a>lS){lS=a;lE=i;lSgn=gr[i]>0?1:-1;}
             }
-            // Right edge: strongest of opposite sign in right 55%
-            var rE = -1, rS = th;
-            for (var i = Math.round(len * 0.45); i < len - 6; i++) {
-                var v = -lSgn * gr[i];
-                if (v > rS) { rS = v; rE = i; }
+            var rE=-1,rS=th;
+            for (var i=Math.round(len*0.45);i<len-6;i++) {
+                var v=-lSgn*gr[i]; if(v>rS){rS=v;rE=i;}
             }
-            if (lE < 0 || rE < 0 || rE <= lE) return 0;
-            var w = rE - lE;
-            return (w >= len * 0.06 && w <= len * 0.70) ? w : 0;
+            if(lE<0||rE<0||rE<=lE) return 0;
+            var w=rE-lE;
+            return (w>=len*0.06 && w<=len*0.70) ? w : 0;
         }
 
-        // ── Finger stability ──────────────────────────────────────────────────
+        // ── Stability ─────────────────────────────────────────────────────────
 
         function fingerIsStable() {
-            var v = fingerBuf.filter(Boolean);
-            if (v.length < 5) return false;
-            var avg = v.reduce(function (s, x) { return s + x; }, 0) / v.length;
-            var dev = v.reduce(function (s, x) { return s + Math.abs(x - avg); }, 0) / v.length;
-            return dev / avg < 0.07;
+            var v=fingerBuf.filter(Boolean);
+            if(v.length<5) return false;
+            var avg=v.reduce(function(s,x){return s+x;},0)/v.length;
+            return v.reduce(function(s,x){return s+Math.abs(x-avg);},0)/v.length/avg < 0.07;
         }
 
         function medianFinger() {
-            var v = fingerBuf.filter(Boolean).sort(function (a, b) { return a - b; });
-            return v[Math.floor(v.length / 2)];
+            var v=fingerBuf.filter(Boolean).sort(function(a,b){return a-b;});
+            return v[Math.floor(v.length/2)];
         }
 
         // ── Manual fallback ───────────────────────────────────────────────────
@@ -518,30 +507,25 @@ function titan_ring_sizer_render() {
         function manualMeasure() {
             if (phase === 'card_found' && lockedCard) {
                 commitResult();
-            } else if (phase === 'scanning') {
-                // Use last detected card if available, else show error
+            } else {
                 var last = cardBuf.filter(Boolean).pop();
                 if (last) {
                     lockedCard = last;
-                    var cw = elCanvas.width, ch = elCanvas.height;
-                    var img = grabFrame(cw, ch);
+                    var ring = getRingParams();
+                    var img  = grabFrame(elCanvas.width, elCanvas.height);
                     if (img) {
-                        var mm = measureFinger(img, cw, lockedCard);
-                        if (mm) {
-                            fingerBuf = [mm, mm, mm, mm, mm];
-                            commitResult();
-                            return;
-                        }
+                        var mm = measureAtRingLine(img, elCanvas.width, lockedCard, ring.widthMm);
+                        if (mm) { fingerBuf = [mm,mm,mm,mm,mm]; commitResult(); return; }
                     }
                 }
-                status('tj-st-err', 'Card not detected yet — point camera at your credit card first');
+                setStatus('tj-st-err', 'Card not detected yet — point camera at your credit card first');
             }
         }
 
         function commitResult() {
             var mm   = medianFinger();
-            var adj  = parseFloat(document.getElementById('tj-width').value);
-            var best = closestSize(mm + adj);
+            var ring = getRingParams();
+            var best = closestSize(mm + ring.sizeAdj);
             closeCamera();
             document.getElementById('tj-size').textContent = best[0];
             document.getElementById('tj-meta').textContent =
@@ -549,80 +533,99 @@ function titan_ring_sizer_render() {
             show(elS3);
         }
 
-        // ── Canvas drawing ────────────────────────────────────────────────────
+        // ── Drawing ───────────────────────────────────────────────────────────
 
         function drawScanOverlay(detected) {
-            var ctx = elCanvas.getContext('2d');
-            var W = elCanvas.width, H = elCanvas.height;
-            ctx.clearRect(0, 0, W, H);
+            var ctx=elCanvas.getContext('2d'), W=elCanvas.width, H=elCanvas.height;
+            ctx.clearRect(0,0,W,H);
 
             if (detected) {
-                // Dim outside detected area, gold outline
-                ctx.fillStyle = 'rgba(0,0,0,0.45)';
-                ctx.fillRect(0, 0, W, H);
-                ctx.clearRect(detected.x, detected.y, detected.w, detected.h);
-                ctx.strokeStyle = '#f5c842';
-                ctx.lineWidth = 2.5 * DPR;
-                ctx.strokeRect(detected.x, detected.y, detected.w, detected.h);
+                ctx.fillStyle='rgba(0,0,0,0.45)';
+                ctx.fillRect(0,0,W,H);
+                ctx.clearRect(detected.x,detected.y,detected.w,detected.h);
+                ctx.strokeStyle='#f5c842';
+                ctx.lineWidth=2.5*DPR;
+                ctx.strokeRect(detected.x,detected.y,detected.w,detected.h);
             } else {
-                // Dashed guide hint
-                var gw = W * 0.80, gh = gw * (CARD_H / CARD_W);
-                var gx = (W - gw) / 2, gy = (H - gh) / 2;
-                ctx.fillStyle = 'rgba(0,0,0,0.5)';
-                ctx.fillRect(0, 0, W, H);
-                ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-                ctx.lineWidth = 1.5 * DPR;
-                ctx.setLineDash([10 * DPR, 7 * DPR]);
-                ctx.strokeRect(gx, gy, gw, gh);
+                var gw=W*0.80, gh=gw*(CARD_H/CARD_W), gx=(W-gw)/2, gy=(H-gh)/2;
+                ctx.fillStyle='rgba(0,0,0,0.5)';
+                ctx.fillRect(0,0,W,H);
+                ctx.strokeStyle='rgba(255,255,255,0.35)';
+                ctx.lineWidth=1.5*DPR;
+                ctx.setLineDash([10*DPR,7*DPR]);
+                ctx.strokeRect(gx,gy,gw,gh);
                 ctx.setLineDash([]);
-                ctx.fillStyle = 'rgba(255,255,255,0.5)';
-                ctx.font = Math.round(10 * DPR) + 'px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('Place a credit card in view', W / 2, gy + gh + 18 * DPR);
+                ctx.fillStyle='rgba(255,255,255,0.5)';
+                ctx.font=Math.round(10*DPR)+'px sans-serif';
+                ctx.textAlign='center';
+                ctx.fillText('Place a credit card in view', W/2, gy+gh+18*DPR);
             }
         }
 
-        function drawCardOverlay(card, fingerMm) {
-            var ctx = elCanvas.getContext('2d');
-            var W = elCanvas.width, H = elCanvas.height;
-            ctx.clearRect(0, 0, W, H);
+        function drawCardOverlay(card, ringWidthMm, fingerMm) {
+            var ctx=elCanvas.getContext('2d'), W=elCanvas.width, H=elCanvas.height;
+            ctx.clearRect(0,0,W,H);
+            ctx.fillStyle='rgba(0,0,0,0.40)';
+            ctx.fillRect(0,0,W,H);
+            ctx.clearRect(card.x,card.y,card.w,card.h);
 
-            ctx.fillStyle = 'rgba(0,0,0,0.4)';
-            ctx.fillRect(0, 0, W, H);
-            ctx.clearRect(card.x, card.y, card.w, card.h);
-
-            // Border: gold when waiting, green when finger found
-            ctx.strokeStyle = fingerMm ? 'rgba(80,220,120,0.95)' : '#c9a96e';
-            ctx.lineWidth = 2.5 * DPR;
+            // Card outline — gold until finger detected, then green
+            ctx.strokeStyle = fingerMm ? 'rgba(80,220,120,0.9)' : '#c9a96e';
+            ctx.lineWidth   = 2.5*DPR;
             ctx.strokeRect(card.x, card.y, card.w, card.h);
 
-            // Scan zone highlight
-            var szY = card.y + card.h * 0.30;
-            var szH = card.h * 0.40;
-            ctx.strokeStyle = fingerMm ? 'rgba(80,220,120,0.8)' : 'rgba(80,180,255,0.8)';
-            ctx.lineWidth = 1.5 * DPR;
-            ctx.setLineDash([7 * DPR, 5 * DPR]);
-            ctx.strokeRect(card.x + card.w * 0.05, szY, card.w * 0.90, szH);
-            ctx.setLineDash([]);
+            var lineL = card.x + card.w * 0.08;
+            var lineR = card.x + card.w * 0.92;
 
-            ctx.textAlign = 'center';
-            ctx.font = 'bold ' + Math.round(10.5 * DPR) + 'px sans-serif';
-            ctx.fillStyle = fingerMm ? 'rgba(80,220,120,0.9)' : 'rgba(80,180,255,0.9)';
-            var label = fingerMm ? 'Hold still…' : 'REST FINGER HERE';
-            ctx.fillText(label, W / 2, szY - 7 * DPR);
+            // ── White guide lines — show where to place finger ──────────────
+            // Top white line  = finger tip position (upper 10% of card)
+            // Bottom white line = base of finger / palm (lower 10% of card)
+            var wTop = card.y + card.h * 0.08;
+            var wBot = card.y + card.h * 0.92;
 
+            ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+            ctx.lineWidth   = 1.5*DPR;
+
+            ctx.beginPath(); ctx.moveTo(lineL, wTop); ctx.lineTo(lineR, wTop); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(lineL, wBot); ctx.lineTo(lineR, wBot); ctx.stroke();
+
+            // Small tick marks at each end of white lines
+            var tick = 6*DPR;
+            [[lineL, wTop],[lineR, wTop],[lineL, wBot],[lineR, wBot]].forEach(function(pt) {
+                ctx.beginPath(); ctx.moveTo(pt[0], pt[1]-tick); ctx.lineTo(pt[0], pt[1]+tick); ctx.stroke();
+            });
+
+            // ── Blue ring lines — where ring sits (base of finger) ──────────
+            var rl = ringLineY(card, ringWidthMm);
+
+            // Shaded band between blue lines
+            ctx.fillStyle = 'rgba(80,150,255,0.12)';
+            ctx.fillRect(lineL, rl.top, lineR-lineL, rl.bot-rl.top);
+
+            // Top and bottom blue lines
+            ctx.strokeStyle = 'rgba(80,160,255,0.9)';
+            ctx.lineWidth   = 2*DPR;
+            ctx.beginPath(); ctx.moveTo(lineL, rl.top); ctx.lineTo(lineR, rl.top); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(lineL, rl.bot); ctx.lineTo(lineR, rl.bot); ctx.stroke();
+
+            // Blue label
+            ctx.fillStyle  = 'rgba(80,160,255,0.9)';
+            ctx.font       = 'bold '+Math.round(9*DPR)+'px sans-serif';
+            ctx.textAlign  = 'center';
+            ctx.fillText('RING POSITION', W/2, rl.top - 6*DPR);
+
+            // Status label
             if (fingerMm) {
-                status('tj-st-finger', 'Finger detected — hold still…');
+                setStatus('tj-st-finger', 'Finger detected — hold still…');
             }
         }
 
         // ── Size lookup ───────────────────────────────────────────────────────
 
         function closestSize(diam) {
-            var best = SIZES[0], bestD = Infinity;
-            for (var i = 0; i < SIZES.length; i++) {
-                var d = Math.abs(diam - SIZES[i][1]);
-                if (d < bestD) { bestD = d; best = SIZES[i]; }
+            var best=SIZES[0], bestD=Infinity;
+            for (var i=0;i<SIZES.length;i++) {
+                var d=Math.abs(diam-SIZES[i][1]); if(d<bestD){bestD=d;best=SIZES[i];}
             }
             return best;
         }

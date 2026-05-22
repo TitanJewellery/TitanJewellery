@@ -14,12 +14,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Generate a Sellerdeck-style order number.
  *
- * Format: {INITIALS}{POSTCODE_DIGITS}{ORDER_ID_PADDED}{MMDD}
+ * Format: {INITIALS}{POSTCODE_DIGITS}{ORDER_ID_PADDED}
  * Example: DL86QL10040519
- *   DL    = Dominika Lopacinska (first letters of first + last name)
- *   86QL  = NG8 6QL → strip leading letters → 86QL
- *   1004  = order ID zero-padded to 4 digits
- *   0519  = MMDD (UTC date of order creation)
+ *   DL       = Dominika Lopacinska (first letters of first + last name)
+ *   86QL     = NG8 6QL → strip leading letters → 86QL
+ *   10040519 = sequential order ID zero-padded to 8 digits
  */
 add_filter( 'woocommerce_order_number', 'titan_sellerdeck_order_number', 10, 2 );
 
@@ -41,12 +40,8 @@ function titan_sellerdeck_order_number( $order_id, $order ) {
         $postcode_part = $postcode; // fallback: use full postcode if nothing was stripped
     }
 
-    // --- 3. Order sequence: zero-padded to 4 digits ---
-    $order_num = str_pad( (string) $order_id, 4, '0', STR_PAD_LEFT );
+    // --- 3. Sequential order ID zero-padded to 8 digits ---
+    $order_num = str_pad( (string) $order_id, 8, '0', STR_PAD_LEFT );
 
-    // --- 4. Date in MMDD format (UTC, matching Sellerdeck behaviour) ---
-    $date_created = $order->get_date_created();
-    $date_part    = $date_created ? $date_created->format( 'md' ) : gmdate( 'md' );
-
-    return $initials . $postcode_part . $order_num . $date_part;
+    return $initials . $postcode_part . $order_num;
 }

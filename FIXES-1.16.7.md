@@ -1,13 +1,18 @@
-# TJ Appt Booker 1.16.6 — audit fixes
+# TJ Appt Booker 1.16.7 — audit fixes
 
-Fixes for the findings in `AUDIT-tj-appt-booker-1.16.5.md`. Fourteen of the
-fifteen are resolved; F-14 is deliberately left alone (reason below).
+Fixes for the findings in `AUDIT-tj-appt-booker-1.16.5.md`, plus a further
+shared-resource defect found in review of the 1.16.6 build (F-16 below).
+Fifteen of sixteen are resolved; F-14 is deliberately left alone (reason below).
+
+**1.16.6 was never released — do not install it.** It fixed the capacity
+double-count but left the opposite defect open (F-16), which could still put two
+calls on the shared phone line. 1.16.7 supersedes it.
 
 - Fixed plugin: `plugin/tj-appt-booker/`
-- Regression suite: `tests/run-all.sh` — 60 assertions, no WordPress install needed
-- Diff: +576 lines in the engine, +12 in the bootstrap
+- Regression suite: `tests/run-all.sh` — 78 assertions, no WordPress install needed
+- No existing method was removed; ten were added
 
-**Version is now 1.16.6, not 1.16.5.** Shipping changed code under an unchanged
+**Version is now 1.16.7.** Shipping changed code under an unchanged
 version number is the exact problem F-04 describes. All three version sites now
 agree: plugin header, `TJ_APPT_BOOKER_VERSION`, and `Appt_Booker_Final::VERSION`.
 
@@ -25,12 +30,14 @@ $ tests/run-all.sh
   OK    class-appt-booker-licence.php
   OK    class-appt-booker.php
 
-run-tests       PASS=23 FAIL=0     merge, holidays, signing, CF, memoisation, tz
-test-settings   PASS=13 FAIL=0     settings merge, fail-closed bot check
-test-smoke      PASS=6  FAIL=0     booking form renders
-test-admin      PASS=18 FAIL=0     all admin tabs render, hostile sort input
+run-tests            PASS=23 FAIL=0   merge, holidays, signing, CF, memoisation, tz
+test-settings        PASS=13 FAIL=0   settings merge, fail-closed bot check
+test-smoke           PASS=6  FAIL=0   booking form renders
+test-admin           PASS=18 FAIL=0   all admin tabs render, hostile sort input
+test-shared-resource PASS=9  FAIL=0   single-phone rule vs capacity
+test-shared-e2e      PASS=7  FAIL=0   same, driven through build_slots()
 ======================================================
-TOTAL  PASS: 60   FAIL: 0
+TOTAL  PASS: 78   FAIL: 0
 ```
 
 Each test was first run against the **original 1.16.5** to confirm it fails there.
@@ -188,6 +195,70 @@ The delete is now batched at 500 rows.
 The shortcode returned an empty string with no admin notice. The bootstrap now
 raises one, matching how a missing engine file is handled.
 
+### F-16 · Shared phone allowed simultaneous calls at capacity > 1 — **High**
+
+*Found in review of 1.16.6; present in 1.16.5 too, and not addressed by the
+F-02 de-duplication.*
+
+F-02 was one half of the problem. `get_all_bookings_for_day()` reports every
+booking as `spaces_booked => 1`, and `add_slots_from_window()` only closed a slot
+once the summed spaces reached capacity. So a booking on a *different* service,
+location or team member consumed exactly one unit of the target slot's capacity
+instead of blocking it.
+
+With Capacity per Time Slot at 2, a Service B call at 10:00 left Service A's
+10:00 slot showing **"1 space left"** — a second call bookable on a phone line
+the code treats as single-occupancy. Higher capacity made it worse.
+
+The same flaw absorbed the cross-staff buffer: with capacity 6, the padding that
+should have held the line clear after a call was simply counted as one space and
+the next slot stayed open.
+
+Capacity and the shared line answer different questions. Capacity is *how many
+people can join this one call*; the shared line is *whether the phone is free at
+all*. Capacity must never outvote it.
+
+New `booking_is_same_session()` decides whether an overlapping booking is the
+same call — it must have come from the per-combination query (not tagged
+`blocks_shared` by the merge) **and** start at the same minute. Anything else is
+a different call, and when shared-resource mode is on it closes the slot
+outright:
+
+```php
+if ( $shared_resource_mode && ! $this->booking_is_same_session( $booking, $slot_start ) ) {
+    $phone_in_use = true;
+    break;
+}
+$booked_spaces += max( 1, absint( $booking['spaces_booked'] ) );
+```
+
+Requiring an equal start time also handles a staggered overlap produced by a
+custom offer interval — two calls beginning 30 minutes apart in the same
+combination are separate calls, not one session.
+
+`build_slots_with_status()` mirrors the rule exactly, so the displayed grid can
+never advertise a slot the booking path would refuse.
+
+With the shared-resource setting **off**, behaviour is unchanged: capacity is
+summed as before.
+
+Covered by `test-shared-resource.php` (9 assertions, unit level) and
+`test-shared-e2e.php` (7, driven through `build_slots()` against a stubbed
+database). The e2e test separates all three builds cleanly:
+
+```
+1.16.5 (original)   PASS=4 FAIL=3   double-count AND single-phone both broken
+1.16.6 (first pass) PASS=6 FAIL=1   double-count fixed, single-phone still broken
+1.16.7 (this)       PASS=7 FAIL=0
+```
+
+### F-17 · Stale version strings — **Hygiene**
+
+*Also found in review of 1.16.6.* `README-LICENSING.txt` said 1.16.4,
+`README-INSTALL.txt` said v1.16.5, and `tj-appt-booker.php` lines 22 and 75 still
+described the engine as v1.15.0. All now read 1.16.7. The dated `V1.16.x`
+headings further down `README-INSTALL.txt` are a changelog and were left as-is.
+
 ### F-15 · Small defects — **Low**
 
 Dead plain-text email body removed; duplicated `'block' === $mode` condition
@@ -228,3 +299,19 @@ offline licensing, not a defect.
    round trip.
 5. Bank holidays now include the current year −1 through +3 and recompute
    automatically. Nothing to maintain annually.
+6. **If you run Capacity per Time Slot above 1 with shared-resource mode on,
+   expect fewer slots to be offered than before.** That is the F-16 fix working:
+   those slots were being offered incorrectly. Availability at capacity 1 — the
+   normal 1-to-1 configuration — is unchanged.
+
+## Still to do before going live
+
+These tests need a real WordPress staging site and cannot be covered by the PHP
+shim suite:
+
+- an ordinary booking end to end, including the confirmation email
+- a booking from a page served out of cache (validates the F-10 nonce refresh)
+- two overlapping bookings across different staff with shared-resource on
+- a capacity-2 service, confirming a foreign booking now closes the slot
+- Turnstile on, with the site key set, confirming a booking still completes
+- saving the Settings tab and then re-checking the Form Style tab (F-01)

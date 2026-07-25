@@ -3,7 +3,7 @@
  * Appt Booker
  *
  * File:        appt-booker-titan-v11-7
- * Version:     1.16.6
+ * Version:     1.16.7
  * Snippet ID:  61
  * Scope:       Global (front-end + admin)
  *
@@ -63,6 +63,23 @@
  *          textarea - matches the "paste a summary" workflow better. Defensive
  *          guard for old records where admin_notes was accidentally saved as
  *          a zero-valued number ("0.000000") - now ignored everywhere.
+ *   1.16.7 Shared-resource capacity fix (follow-up to the 1.16.6 audit pass).
+ *          The 1.16.6 de-duplication stopped a booking being counted twice
+ *          against slot capacity, but left a second, opposite defect: a
+ *          booking on a DIFFERENT service, location or team member was still
+ *          counted as one unit of the target slot's capacity. With Capacity
+ *          per Time Slot above 1 that left the slot open, so a second call
+ *          could be booked while the shared phone line was already busy.
+ *          Capacity now applies only to people joining the SAME call: any
+ *          overlapping booking that is not the same session closes the slot
+ *          outright when the shared-resource setting is on. This also
+ *          restores the cross-staff buffer, which a capacity above 1 had
+ *          been absorbing in the same way. build_slots_with_status() mirrors
+ *          the rule so the displayed grid cannot advertise a slot the
+ *          booking path would refuse. Behaviour with the shared-resource
+ *          setting off is unchanged.
+ *          Version references in both READMEs and the two bootstrap comments
+ *          that still described the engine as v1.15.0 were realigned.
  *   1.16.6 Audit fixes.
  *          - Saving the Settings tab no longer replaces the whole settings
  *            option, which had been silently resetting all 58 Form Style
@@ -430,7 +447,7 @@ if ( ! class_exists( 'Appt_Booker_Final' ) ) {
 
 	class Appt_Booker_Final {
 
-		const VERSION         = '1.16.6';
+		const VERSION         = '1.16.7';
 		const OPTION_DB_VERSION = 'rgl_booking_final_db_version';
 		const OPTION_STAFF      = 'rgl_booking_final_staff';
 		const OPTION_SERVICES   = 'rgl_booking_final_services';
@@ -5546,6 +5563,24 @@ if ( ! class_exists( 'Appt_Booker_Final' ) ) {
 			return $out;
 		}
 
+		/**
+		 * Is this existing booking the very same session as the slot being built?
+		 *
+		 * Only people joining one call share a slot's capacity. That means the
+		 * booking must belong to the combination being built (blocks_shared not
+		 * set, i.e. it came from get_existing_bookings_for_day()) AND start at
+		 * the same time. A booking in the same combination that merely overlaps -
+		 * an earlier call whose cross-staff buffer runs into this slot, or a
+		 * staggered start produced by a custom offer interval - is a separate
+		 * call and cannot share the line.
+		 */
+		private function booking_is_same_session( $booking, $slot_start ) {
+			if ( ! empty( $booking['blocks_shared'] ) ) {
+				return false;
+			}
+			return (int) $booking['start'] === (int) $slot_start;
+		}
+
 		private function slot_overlaps_windows( $slot_start, $slot_end, $windows ) {
 			if ( empty( $windows ) || ! is_array( $windows ) ) {
 				return false;
@@ -5561,7 +5596,14 @@ if ( ! class_exists( 'Appt_Booker_Final' ) ) {
 			return false;
 		}
 
-		private function add_slots_from_window( &$slots, $date, $start_minutes, $end_minutes, $duration, $slot_step, $existing, $min_ts, $blocked_windows = array(), $slot_capacity = 1 ) {
+		/**
+		 * @param bool $shared_resource_mode When the single shared phone line is
+		 *                                   in force, an overlapping booking that
+		 *                                   is not part of this exact session
+		 *                                   closes the slot outright instead of
+		 *                                   consuming one unit of its capacity.
+		 */
+		private function add_slots_from_window( &$slots, $date, $start_minutes, $end_minutes, $duration, $slot_step, $existing, $min_ts, $blocked_windows = array(), $slot_capacity = 1, $shared_resource_mode = false ) {
 			if ( $end_minutes <= $start_minutes || $slot_step <= 0 ) {
 				return;
 			}
@@ -5583,10 +5625,22 @@ if ( ! class_exists( 'Appt_Booker_Final' ) ) {
 				}
 
 				$booked_spaces = 0;
+				$phone_in_use  = false;
 				foreach ( $existing as $booking ) {
-					if ( $slot_start < $booking['end'] && $slot_end > $booking['start'] ) {
-						$booked_spaces += max( 1, absint( isset( $booking['spaces_booked'] ) ? $booking['spaces_booked'] : 1 ) );
+					if ( $slot_start >= $booking['end'] || $slot_end <= $booking['start'] ) {
+						continue;
 					}
+					if ( $shared_resource_mode && ! $this->booking_is_same_session( $booking, $slot_start ) ) {
+						// A different call is already on the shared line, or we are
+						// inside the cross-staff buffer that follows one. Capacity
+						// is irrelevant: there is only one phone.
+						$phone_in_use = true;
+						break;
+					}
+					$booked_spaces += max( 1, absint( isset( $booking['spaces_booked'] ) ? $booking['spaces_booked'] : 1 ) );
+				}
+				if ( $phone_in_use ) {
+					continue;
 				}
 
 				$remaining_spaces = max( 0, $slot_capacity - $booked_spaces );
@@ -6142,10 +6196,18 @@ if ( ! class_exists( 'Appt_Booker_Final' ) ) {
 		 *     buffer, which must still be honoured for a booking that happens to
 		 *     belong to the combination being built.
 		 * So: keep the larger space count and the later end.
+		 *
+		 * Rows are also tagged with blocks_shared. A booking that appears ONLY in
+		 * the shared list belongs to some other service, location or team member
+		 * - it is a different call on the one phone line, so it must close the
+		 * slot outright rather than consume a share of its capacity. Capacity is
+		 * for people joining the SAME call; it must never be able to outvote the
+		 * single-phone rule. See add_slots_from_window().
 		 */
 		private function merge_booking_occupancy( $primary, $shared ) {
 			$merged = array();
-			foreach ( array( $primary, $shared ) as $list ) {
+
+			foreach ( array( 'primary' => $primary, 'shared' => $shared ) as $source => $list ) {
 				foreach ( (array) $list as $booking ) {
 					$id  = isset( $booking['id'] ) ? absint( $booking['id'] ) : 0;
 					// No id (defensive): fall back to a start/end key so an
@@ -6153,6 +6215,9 @@ if ( ! class_exists( 'Appt_Booker_Final' ) ) {
 					$key = $id > 0 ? 'id:' . $id : 'se:' . (int) $booking['start'] . '-' . (int) $booking['end'];
 
 					if ( ! isset( $merged[ $key ] ) ) {
+						// Provisionally blocking if first seen in the shared list;
+						// cleared below if the per-combination list also has it.
+						$booking['blocks_shared'] = ( 'shared' === $source );
 						$merged[ $key ] = $booking;
 						continue;
 					}
@@ -6162,8 +6227,14 @@ if ( ! class_exists( 'Appt_Booker_Final' ) ) {
 						(int) $merged[ $key ]['spaces_booked'],
 						(int) $booking['spaces_booked']
 					);
+					// Present in the per-combination list too, so it is part of
+					// the session being built rather than a foreign call.
+					if ( 'primary' === $source ) {
+						$merged[ $key ]['blocks_shared'] = false;
+					}
 				}
 			}
+
 			return array_values( $merged );
 		}
 
@@ -6371,9 +6442,12 @@ if ( ! class_exists( 'Appt_Booker_Final' ) ) {
 			// calls (whoever they are assigned to) can overlap, and so the
 			// cross-staff buffer is enforced. The merge must de-duplicate by
 			// booking id - add_slots_from_window() sums spaces_booked, so a
-			// booking present in both lists would consume capacity twice.
+			// booking present in both lists would consume capacity twice - and it
+			// tags foreign bookings so they close the slot outright rather than
+			// taking one unit out of its capacity.
 			$settings_for_slots = $this->get_settings();
-			if ( ! empty( $settings_for_slots['shared_resource_enabled'] ) ) {
+			$shared_resource_mode = ! empty( $settings_for_slots['shared_resource_enabled'] );
+			if ( $shared_resource_mode ) {
 				$shared = $this->get_all_bookings_for_day( $date, $exclude_booking_id );
 				if ( ! empty( $shared ) ) {
 					$existing = $this->merge_booking_occupancy( $existing, $shared );
@@ -6432,7 +6506,7 @@ if ( ! class_exists( 'Appt_Booker_Final' ) ) {
 			}
 
 			foreach ( $windows as $window ) {
-				$this->add_slots_from_window( $slots, $date, $window['start'], $window['end'], $duration, $slot_step, $existing, $min_ts, $blocked_windows, $slot_capacity );
+				$this->add_slots_from_window( $slots, $date, $window['start'], $window['end'], $duration, $slot_step, $existing, $min_ts, $blocked_windows, $slot_capacity, $shared_resource_mode );
 			}
 
 			usort( $slots, function( $a, $b ) {
@@ -6475,7 +6549,8 @@ if ( ! class_exists( 'Appt_Booker_Final' ) ) {
 
 			$existing = $this->get_existing_bookings_for_day( $location ? $location['id'] : '', $service['id'], $staff ? $staff['id'] : '', $date, $exclude_booking_id );
 			$settings_for_slots = $this->get_settings();
-			if ( ! empty( $settings_for_slots['shared_resource_enabled'] ) ) {
+			$shared_resource_mode = ! empty( $settings_for_slots['shared_resource_enabled'] );
+			if ( $shared_resource_mode ) {
 				$shared = $this->get_all_bookings_for_day( $date, $exclude_booking_id );
 				if ( ! empty( $shared ) ) {
 					// De-duplicate by booking id - see merge_booking_occupancy().
@@ -6539,13 +6614,22 @@ if ( ! class_exists( 'Appt_Booker_Final' ) ) {
 					} elseif ( $this->slot_overlaps_windows( $slot_start, $slot_end, $blocked_windows ) ) {
 						$status = 'blocked';
 					} else {
+						// Mirrors add_slots_from_window() exactly, so the grid can
+						// never show a slot as available that build_slots() would
+						// refuse to sell.
 						$booked_spaces = 0;
+						$phone_in_use  = false;
 						foreach ( $existing as $booking ) {
-							if ( $slot_start < $booking['end'] && $slot_end > $booking['start'] ) {
-								$booked_spaces += max( 1, absint( isset( $booking['spaces_booked'] ) ? $booking['spaces_booked'] : 1 ) );
+							if ( $slot_start >= $booking['end'] || $slot_end <= $booking['start'] ) {
+								continue;
 							}
+							if ( $shared_resource_mode && ! $this->booking_is_same_session( $booking, $slot_start ) ) {
+								$phone_in_use = true;
+								break;
+							}
+							$booked_spaces += max( 1, absint( isset( $booking['spaces_booked'] ) ? $booking['spaces_booked'] : 1 ) );
 						}
-						if ( $booked_spaces >= $slot_capacity ) {
+						if ( $phone_in_use || $booked_spaces >= $slot_capacity ) {
 							$status = 'booked';
 						} elseif ( $day_capped ) {
 							$status = 'capped';

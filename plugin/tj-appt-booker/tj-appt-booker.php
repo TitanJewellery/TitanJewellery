@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       TJ Appt Booker
  * Description:       Titan Jewellery consultation booking system, no-payment security build. The full engine only loads on requests that actually need it; other front-end pages remain unaffected.
- * Version:           1.16.6
+ * Version:           1.16.7
  * Author:            Jason Beer of Titan Jewellery
  * Author URI:        https://www.titanjewellery.co.uk/
  * Requires at least: 6.0
@@ -19,7 +19,7 @@
  *   tj-appt-booker.php                     <- this file. Tiny. Loads always,
  *                                             decides whether the engine is
  *                                             needed. OPcache-compiled once.
- *   includes/class-appt-booker.php   <- the v1.15.0 no-payment engine.
+ *   includes/class-appt-booker.php   <- the v1.16.7 no-payment engine.
  *                                             Only loaded when a trigger fires.
  *
  * The engine loads when ANY of these is true:
@@ -50,7 +50,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'TJ_APPT_BOOKER_VERSION', '1.16.6' );
+define( 'TJ_APPT_BOOKER_VERSION', '1.16.7' );
 define( 'TJ_APPT_BOOKER_ENGINE', __DIR__ . '/includes/class-appt-booker.php' );
 define( 'TJ_APPT_BOOKER_LICENCE', __DIR__ . '/includes/class-appt-booker-licence.php' );
 
@@ -72,7 +72,7 @@ if ( is_readable( TJ_APPT_BOOKER_LICENCE ) ) {
 /**
  * Load the full booking engine exactly once.
  *
- * The engine file contains the hardened v1.15.0 no-payment build. It ends with
+ * The engine file contains the hardened v1.16.7 no-payment build. It ends with
  * appt_booker_final_boot(), so simply requiring it registers everything.
  */
 function tj_appt_booker_load_engine() {

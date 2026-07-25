@@ -285,61 +285,26 @@ V1.14.1 RETENTION ENABLED FOR EXISTING INSTALLATION
 
 
 
-V1.16.8 UPGRADE ACTIONS - READ BEFORE AND AFTER UPGRADING
-======================================================
-
-Three things need a human after upgrading from 1.16.5 or earlier.
-
-1. CHECK THE FORM STYLE TAB.
-   Before 1.16.6, saving the Settings tab silently replaced every Form Style
-   value with its default. The fix stops that happening again, but it cannot
-   recover anything already lost. Open Appt-Booker -> Form Style, check the
-   button colours, fonts and spacing, and re-enter anything that has reverted.
-
-2. IF YOU USE CLOUDFLARE TURNSTILE, REMOVE THE MANUAL SCRIPT TAG.
-   Earlier versions told you to paste a <script src="...turnstile/v0/api.js">
-   tag into your theme header. The plugin now loads that script itself whenever
-   Turnstile is enabled and a site key is set. Loading it twice can stop the
-   widget appearing, which blocks every booking. Delete the manual tag.
-
-3. IF YOU USE CAPACITY PER TIME SLOT ABOVE 1, EXPECT FEWER SLOTS.
-   With the phone treated as a shared resource, a slot is now closed whenever
-   any other call overlaps it - including a call on a different service or team
-   member, a slot sitting inside the gap that follows an earlier call, and a
-   staggered slot created by an offer interval shorter than the appointment
-   length. Those slots were previously offered and should not have been: taking
-   one would have put two calls on one phone line. Capacity still works
-   normally for people joining the same session.
-
-Nothing else needs doing. There is no database migration and no settings
-migration.
-
-
-V1.16.5-1.16.8 SECURITY AND CORRECTNESS FIXES
-======================================================
-
-Summarised for reference. None of these change how you use the system day to
-day, apart from the three actions above.
-
-- Settings save no longer wipes Form Style values.
-- Shared phone line: a booking can no longer be counted twice against a slot's
-  capacity, and capacity can no longer override the one-call-at-a-time rule.
-- Availability cut-off now reads the correct hour during British Summer Time.
-  It had been closing the day an hour early from late March to late October.
-- UK bank holidays are calculated rather than listed, so they can never run out.
-  The old list stopped at the end of 2029. One-off holidays such as a state
-  funeral can be added with the tj_appt_booker_bank_holidays filter.
-- The booking form refreshes its security token when the page loads, so a page
-  served from cache can no longer fail silently when the token has expired.
-- The bot check that measures how long the form took to complete can no longer
-  be skipped by omitting a field, and the timestamp is now signed.
-- The visitor IP used for rate limiting is only taken from the Cloudflare header
-  when the request genuinely came through Cloudflare.
-- Turnstile's script is loaded by the plugin instead of by hand.
-- Far fewer database queries per page load.
-- Data retention remains ON by default: contact details are cleared after six
-  months and records deleted after thirty. Both are permanent. Turn retention
-  off in Settings if that is not what you want.
+V1.16.5-1.16.8 SECURITY, SETTINGS AND AVAILABILITY FIXES
+---------------------------------------------------------
+- After upgrading, open the Form Style tab and check every value. The settings
+  save fix prevents future loss but cannot recover styling values already wiped
+  by an older build. Re-enter anything that has reverted.
+- Remove any Cloudflare Turnstile script tag previously added manually to the
+  theme header. The plugin now loads the Turnstile script automatically when
+  Turnstile is enabled; loading it twice can stop the widget appearing.
+- Services with Capacity per Time Slot above 1 may now show fewer start times.
+  The removed times previously allowed overlapping calls on the single shared
+  phone line. Capacity still works normally for people joining the same session
+  at the same start time.
+- The 1.16.5-1.16.8 fixes preserve Form Style values when Settings are saved,
+  harden form tokens and Cloudflare client-IP handling, correct BST booking
+  cut-offs and bank holidays, reduce repeated schema and availability queries,
+  load Turnstile automatically, and prevent shared-resource and staggered-call
+  overlaps without reducing genuine same-session capacity.
+- Data retention is ON by default. Contact details are cleared after 6 months
+  and complete booking records are deleted after 30 months. Both actions are
+  permanent.
 
 
 V1.16.4 AUDIENCE-SPECIFIC UNLICENSED EMAIL FOOTERS

@@ -5603,15 +5603,14 @@ if ( ! class_exists( 'Appt_Booker_Final' ) ) {
 				$booked_spaces = 0;
 				foreach ( $existing as $booking ) {
 					if ( $slot_start < $booking['end'] && $slot_end > $booking['start'] ) {
-						// Capacity is shared only by people joining the SAME call:
-						// same combination AND same start time. A foreign booking,
-						// or an overlapping call in this combination that starts at
-						// a different minute (an earlier call's cross-staff buffer
-						// tail, or a staggered start from a custom offer interval),
-						// occupies the line outright. Deliberately not gated on the
-						// shared-resource setting: two overlapping bookings in one
-						// combination mean one staff member running two overlapping
-						// sessions, which is wrong either way.
+						// Capacity is shared only by people joining the SAME call: same
+						// combination AND same start time. A foreign booking, or an overlapping
+						// call in this combination that starts at a different minute (an earlier
+						// call's cross-staff buffer tail, or a staggered start from a custom offer
+						// interval), occupies the line outright. Deliberately NOT gated on
+						// shared_resource_enabled: two overlapping bookings in one combination mean
+						// one staff member running two overlapping sessions, which is wrong either
+						// way.
 						if ( ! empty( $booking['blocks_shared_resource'] )
 							|| (int) $booking['start'] !== (int) $slot_start ) {
 							$booked_spaces = $slot_capacity;
@@ -6585,9 +6584,8 @@ if ( ! class_exists( 'Appt_Booker_Final' ) ) {
 						$booked_spaces = 0;
 						foreach ( $existing as $booking ) {
 							if ( $slot_start < $booking['end'] && $slot_end > $booking['start'] ) {
-								// Mirrors add_slots_from_window() exactly, so the
-								// displayed grid can never advertise a slot the
-								// booking path would refuse to sell.
+								// Mirrors add_slots_from_window() exactly, so the displayed grid can never
+								// advertise a slot the booking path would refuse to sell.
 								if ( ! empty( $booking['blocks_shared_resource'] )
 									|| (int) $booking['start'] !== (int) $slot_start ) {
 									$booked_spaces = $slot_capacity;

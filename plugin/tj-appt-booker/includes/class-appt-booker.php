@@ -12953,7 +12953,7 @@ TJAPPTAIPROMPT;
 									<p><label>Turnstile Site Key<br><input type="text" name="security_turnstile_site_key" value="<?php echo esc_attr( isset( $settings['security_turnstile_site_key'] ) ? $settings['security_turnstile_site_key'] : '' ); ?>" placeholder="0x4AAAAAAA..."></label></p>
 									<p><label>Turnstile Secret Key<br><input type="text" name="security_turnstile_secret_key" value="<?php echo esc_attr( isset( $settings['security_turnstile_secret_key'] ) ? $settings['security_turnstile_secret_key'] : '' ); ?>" placeholder="0x4AAAAAAA..."></label></p>
 								</div>
-								<p style="margin:8px 0 0;color:#666;font-size:12px;">If Turnstile is enabled, add &lt;script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer&gt;&lt;/script&gt; to your theme header. Site key from your Cloudflare Turnstile dashboard.</p>
+								<p style="margin:8px 0 0;color:#666;font-size:12px;">Site key and secret key come from your Cloudflare Turnstile dashboard. The Turnstile script is loaded automatically when this is enabled &ndash; if you previously added a &lt;script src=&quot;...turnstile/v0/api.js&quot;&gt; tag to your theme header by hand, remove it now, as loading it twice can stop the widget appearing.</p>
 							</div>
 
 							<div class="rgl-full" style="margin-top:18px;">

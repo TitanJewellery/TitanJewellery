@@ -29,7 +29,7 @@ ob_start();
 try { $b->render_admin_page(); $err=null; } catch (Throwable $e) { $err=$e->getMessage(); }
 $html = ob_get_clean();
 ok($err===null,'render_admin_page() completes without error', (string)$err);
-ok(strpos($html,'Appt-Booker V.1.16.7')!==false,'admin header shows the correct version');
+ok(strpos($html,'Appt-Booker V.1.16.8')!==false,'admin header shows the correct version');
 ok(strpos($html,'<?php')===false,'no raw PHP leaked into admin output');
 echo "\nbookings tab rendered ".strlen($html)." bytes\n";
 

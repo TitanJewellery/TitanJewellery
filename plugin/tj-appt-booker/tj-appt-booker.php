@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       TJ Appt Booker
  * Description:       Titan Jewellery consultation booking system, no-payment security build. The full engine only loads on requests that actually need it; other front-end pages remain unaffected.
- * Version:           1.16.7
+ * Version:           1.16.8
  * Author:            Jason Beer of Titan Jewellery
  * Author URI:        https://www.titanjewellery.co.uk/
  * Requires at least: 6.0
@@ -50,7 +50,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'TJ_APPT_BOOKER_VERSION', '1.16.7' );
+define( 'TJ_APPT_BOOKER_VERSION', '1.16.8' );
 define( 'TJ_APPT_BOOKER_ENGINE', __DIR__ . '/includes/class-appt-booker.php' );
 define( 'TJ_APPT_BOOKER_LICENCE', __DIR__ . '/includes/class-appt-booker-licence.php' );
 

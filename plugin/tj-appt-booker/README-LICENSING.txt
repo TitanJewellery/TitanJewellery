@@ -1,4 +1,4 @@
-TJ APPOINTMENT BOOKER 1.16.7 - LICENSING
+TJ APPOINTMENT BOOKER 1.16.8 - LICENSING
 ========================================
 
 Product slug

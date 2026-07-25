@@ -34,7 +34,7 @@ function slotsFor($b,$existing,$capacity,$sharedMode){
 echo "=== the reported defect: foreign booking vs capacity 2 ===\n";
 // Service B booked at 10:00 with a different staff member. Seen only by the
 // shared-resource query, so spaces_booked is 1 and blocks_shared is set.
-$foreign = array(array('id'=>42,'start'=>600,'end'=>660,'spaces_booked'=>1,'blocks_shared'=>true));
+$foreign = array(array('id'=>42,'start'=>600,'end'=>660,'spaces_booked'=>1,'blocks_shared_resource'=>true));
 $slots = slotsFor($b,$foreign,2,true);
 ok(count($slots)===0,
    'capacity-2 Service A slot is CLOSED while the phone is on a Service B call',
@@ -48,19 +48,19 @@ ok(count($slots)===0,'capacity-6 slot is closed - capacity never outvotes the sh
 
 echo "\n=== group sessions must still work ===\n";
 // Same combination, same start: these people are joining the SAME call.
-$sameSession = array(array('id'=>7,'start'=>600,'end'=>660,'spaces_booked'=>2,'blocks_shared'=>false));
+$sameSession = array(array('id'=>7,'start'=>600,'end'=>660,'spaces_booked'=>2,'blocks_shared_resource'=>false));
 $slots = slotsFor($b,$sameSession,6,true);
 ok(count($slots)===1,'capacity-6 workshop with 2 booked is still offered');
 ok(!empty($slots) && $slots[0]['spaces_remaining']===4,'4 spaces remaining',
    'got '.(!empty($slots)?$slots[0]['spaces_remaining']:'none'));
 
-$full = array(array('id'=>7,'start'=>600,'end'=>660,'spaces_booked'=>6,'blocks_shared'=>false));
+$full = array(array('id'=>7,'start'=>600,'end'=>660,'spaces_booked'=>6,'blocks_shared_resource'=>false));
 ok(count(slotsFor($b,$full,6,true))===0,'a full workshop closes the slot');
 
 echo "\n=== cross-staff buffer still enforced ===\n";
 // Same combination but an EARLIER call, end padded by the 15-min buffer to 675.
 // Slot 11:00 (660-720) overlaps that padding, and it is a different call.
-$earlier = array(array('id'=>7,'start'=>600,'end'=>675,'spaces_booked'=>1,'blocks_shared'=>false));
+$earlier = array(array('id'=>7,'start'=>600,'end'=>675,'spaces_booked'=>1,'blocks_shared_resource'=>false));
 $slots=array();
 $args=array(&$slots,'2026-08-05',660,720,60,60,$earlier,0,array(),6,true);
 $r=new ReflectionMethod($b,'add_slots_from_window'); $r->setAccessible(true);
@@ -69,7 +69,7 @@ try { $r->invokeArgs($b,$args); } catch (ArgumentCountError $e) {
 ok(count($slots)===0,'11:00 slot closed by the buffer tail of the 10:00 call, despite capacity 6');
 
 echo "\n=== shared resource OFF: capacity behaves as before ===\n";
-$other = array(array('id'=>42,'start'=>600,'end'=>660,'spaces_booked'=>1,'blocks_shared'=>false));
+$other = array(array('id'=>42,'start'=>600,'end'=>660,'spaces_booked'=>1,'blocks_shared_resource'=>false));
 $slots = slotsFor($b,$other,2,false);
 ok(count($slots)===1,'with shared mode off, a capacity-2 slot with 1 booked stays open');
 ok(!empty($slots) && $slots[0]['spaces_remaining']===1,'1 space remaining',

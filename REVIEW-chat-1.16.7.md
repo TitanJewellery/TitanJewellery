@@ -1,7 +1,15 @@
-# Review — Chat's reviewed 1.16.7 build
+# Review — Chat's reviewed 1.16.7 build (two submissions)
 
 `tjapptbookerv1.16.7reviewed.zip`, checked against my 1.16.7 (commit `42dbbd2`)
 and against the original 1.16.5.
+
+> **Second submission (upload `a6e314f2`) was byte-identical to the first.**
+> All five files matched on SHA-256, the patch site was untouched, and the
+> neutral test returned the same 3/5. The change was not applied. Rather than
+> another round trip the two lines were applied here directly, on Chat's
+> structure, and released as **1.16.8** — see `FIXES-1.16.7.md` and the
+> changelog entry in the engine header. Everything below stands as the record of
+> what was wrong and why.
 
 ## Verdict
 

@@ -1,15 +1,20 @@
-# Review — Chat's reviewed 1.16.7 build (two submissions)
+# Review — Chat's reviewed builds (four submissions, resolved at 1.16.8)
 
 `tjapptbookerv1.16.7reviewed.zip`, checked against my 1.16.7 (commit `42dbbd2`)
 and against the original 1.16.5.
 
-> **Second submission (upload `a6e314f2`) was byte-identical to the first.**
-> All five files matched on SHA-256, the patch site was untouched, and the
-> neutral test returned the same 3/5. The change was not applied. Rather than
-> another round trip the two lines were applied here directly, on Chat's
-> structure, and released as **1.16.8** — see `FIXES-1.16.7.md` and the
-> changelog entry in the engine header. Everything below stands as the record of
-> what was wrong and why.
+> **RESOLVED — Chat's 1.16.8 (`2336aea8-tjapptbookerv1.16.8corrected.zip`) is
+> verified good.** Its executable code is **token-for-token identical** to the
+> 1.16.8 I built independently: 81,817 tokens each, comments and whitespace
+> stripped via PHP's own tokenizer, exact match. Two independent implementations
+> converged on the same code. Full suite green at 83/83, including 5/5 on the
+> neutral test. Licence file still byte-identical to the original 1.16.5; no
+> method removed; all four version sites and both README titles read 1.16.8.
+>
+> Submission history: uploads 1–3 (`ff7d3b39`, `a6e314f2`, `9e9f5738`) were all
+> byte-identical to each other — the requested change was not applied and the
+> same file came back three times. Upload 4 applied it correctly. Everything
+> below stands as the record of what was wrong and why.
 
 ## Verdict
 

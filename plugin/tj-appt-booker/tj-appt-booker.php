@@ -19,7 +19,7 @@
  *   tj-appt-booker.php                     <- this file. Tiny. Loads always,
  *                                             decides whether the engine is
  *                                             needed. OPcache-compiled once.
- *   includes/class-appt-booker.php   <- the v1.16.7 no-payment engine.
+ *   includes/class-appt-booker.php   <- the current booking engine.
  *                                             Only loaded when a trigger fires.
  *
  * The engine loads when ANY of these is true:
@@ -72,7 +72,7 @@ if ( is_readable( TJ_APPT_BOOKER_LICENCE ) ) {
 /**
  * Load the full booking engine exactly once.
  *
- * The engine file contains the hardened v1.16.7 no-payment build. It ends with
+ * The engine file contains the current hardened no-payment build. It ends with
  * appt_booker_final_boot(), so simply requiring it registers everything.
  */
 function tj_appt_booker_load_engine() {

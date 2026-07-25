@@ -12,7 +12,7 @@ for f in ../plugin/tj-appt-booker/tj-appt-booker.php ../plugin/tj-appt-booker/in
 done
 
 echo
-for t in run-tests test-settings test-smoke test-admin test-shared-resource test-shared-e2e; do
+for t in run-tests test-settings test-smoke test-admin test-shared-resource test-shared-e2e test-shared-neutral; do
   echo "=== $t ==="
   out=$(php "$t.php" 2>&1); echo "$out"
   total_pass=$(( total_pass + $(echo "$out" | grep -c '^PASS') ))

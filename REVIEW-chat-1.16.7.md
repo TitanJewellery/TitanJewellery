@@ -3,18 +3,27 @@
 `tjapptbookerv1.16.7reviewed.zip`, checked against my 1.16.7 (commit `42dbbd2`)
 and against the original 1.16.5.
 
-> **RESOLVED — Chat's 1.16.8 (`2336aea8-tjapptbookerv1.16.8corrected.zip`) is
-> verified good.** Its executable code is **token-for-token identical** to the
-> 1.16.8 I built independently: 81,817 tokens each, comments and whitespace
-> stripped via PHP's own tokenizer, exact match. Two independent implementations
-> converged on the same code. Full suite green at 83/83, including 5/5 on the
-> neutral test. Licence file still byte-identical to the original 1.16.5; no
-> method removed; all four version sites and both README titles read 1.16.8.
+> **RESOLVED AND SIGNED OFF — Chat's 1.16.8 final
+> (`6264621b-tjapptbookerv1.16.8final.zip`) is approved to ship.**
 >
-> Submission history: uploads 1–3 (`ff7d3b39`, `a6e314f2`, `9e9f5738`) were all
-> byte-identical to each other — the requested change was not applied and the
-> same file came back three times. Upload 4 applied it correctly. Everything
-> below stands as the record of what was wrong and why.
+> Executable code is **token-for-token identical** to the 1.16.8 built here
+> independently — 81,817 tokens each, comments and whitespace stripped via PHP's
+> tokenizer. Two independent implementations converged on the same program. Full
+> suite green at 83/83 including 5/5 on the neutral shared-resource test.
+> Licence file byte-identical to the original 1.16.5, no method removed since
+> 1.16.5, all six version sites read 1.16.8, changelog entry present and
+> correctly ordered, zip free of `__MACOSX` / `.DS_Store`.
+>
+> The only remaining difference from the copy in `plugin/tj-appt-booker/` is 12
+> lines of explanatory inline comment at the two patch sites. Non-functional, but
+> one of them records *why* the start-time condition is deliberately not gated on
+> `shared_resource_enabled` — worth carrying across, since a future maintainer
+> would otherwise be likely to add that guard and reintroduce half the defect.
+>
+> Submission history: uploads 1–3 (`ff7d3b39`, `a6e314f2`, `9e9f5738`) were
+> byte-identical to one another — the requested change never reached the package.
+> Upload 4 (`2336aea8`) applied it correctly. Upload 5 added the changelog entry.
+> Everything below stands as the record of what was wrong and why.
 
 ## Verdict
 
